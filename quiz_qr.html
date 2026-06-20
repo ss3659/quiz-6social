@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QR코드 안내 — 6학년 사회 단원평가</title>
+<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+  :root {
+    --teal:#1D9E75; --teal-light:#E1F5EE; --teal-dark:#0F6E56;
+    --gray-bg:#F7F6F2; --gray-border:#E2E0D8; --gray-text:#6B6A65;
+    --text:#1a1a18; --white:#fff; --radius:12px; --radius-sm:8px;
+  }
+  body { font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif; background:var(--gray-bg); min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2rem 1rem; color:var(--text); }
+  h1 { font-size:22px; font-weight:800; text-align:center; margin-bottom:4px; }
+  .subtitle { font-size:14px; color:var(--gray-text); text-align:center; margin-bottom:2rem; }
+  .cards { display:grid; grid-template-columns:1fr 1fr; gap:16px; width:100%; max-width:700px; }
+  @media(max-width:520px){.cards{grid-template-columns:1fr;}}
+  .card { background:var(--white); border-radius:var(--radius); border:1px solid var(--gray-border); padding:1.5rem; display:flex; flex-direction:column; align-items:center; }
+  .card-title { font-size:15px; font-weight:700; margin-bottom:4px; }
+  .card-desc { font-size:12px; color:var(--gray-text); margin-bottom:1.2rem; text-align:center; }
+  canvas { border-radius:8px; }
+  .url-box { margin-top:1rem; background:var(--gray-bg); border-radius:var(--radius-sm); padding:8px 12px; font-size:11px; color:var(--gray-text); word-break:break-all; text-align:center; width:100%; }
+  .dl-btn { margin-top:10px; background:var(--teal); color:#fff; border:none; border-radius:var(--radius-sm); padding:8px 20px; font-size:13px; font-weight:600; cursor:pointer; }
+  .dl-btn:hover { background:var(--teal-dark); }
+  .note { margin-top:2rem; background:var(--teal-light); border-radius:var(--radius-sm); padding:1rem 1.2rem; max-width:700px; width:100%; }
+  .note p { font-size:13px; color:var(--teal-dark); line-height:1.7; }
+  .note strong { font-weight:700; }
+
+  /* 입력 */
+  .input-section { background:var(--white); border-radius:var(--radius); border:1px solid var(--gray-border); padding:1.5rem; max-width:700px; width:100%; margin-bottom:1.5rem; }
+  .input-section h2 { font-size:14px; font-weight:700; margin-bottom:1rem; }
+  .input-row { display:flex; gap:8px; align-items:flex-end; }
+  .field { flex:1; }
+  label { font-size:12px; color:var(--gray-text); display:block; margin-bottom:4px; }
+  input { width:100%; padding:9px 12px; border:1px solid var(--gray-border); border-radius:var(--radius-sm); font-size:14px; outline:none; }
+  input:focus { border-color:var(--teal); }
+  .gen-btn { background:var(--teal); color:#fff; border:none; border-radius:var(--radius-sm); padding:10px 20px; font-size:14px; font-weight:600; cursor:pointer; white-space:nowrap; }
+  .gen-btn:hover { background:var(--teal-dark); }
+</style>
+</head>
+<body>
+<h1>📱 시험 QR코드 안내</h1>
+<p class="subtitle">6학년 사회 1단원 · 우리나라의 정치 발전</p>
+
+<div class="input-section">
+  <h2>🔗 파일을 업로드한 URL을 입력하세요</h2>
+  <div class="input-row">
+    <div class="field">
+      <label>학생용 시험 URL (quiz_student.html 업로드 주소)</label>
+      <input type="text" id="student-url" placeholder="https://example.com/quiz_student.html">
+    </div>
+  </div>
+  <div class="input-row" style="margin-top:10px">
+    <div class="field">
+      <label>선생님 대시보드 URL (quiz_dashboard.html 업로드 주소)</label>
+      <input type="text" id="dashboard-url" placeholder="https://example.com/quiz_dashboard.html">
+    </div>
+    <button class="gen-btn" onclick="generate()">QR 생성</button>
+  </div>
+</div>
+
+<div class="cards" id="cards" style="display:none">
+  <div class="card">
+    <div class="card-title">👧 학생용 시험 QR</div>
+    <div class="card-desc">학생들이 스캔하여 시험을 응시합니다</div>
+    <canvas id="qr-student"></canvas>
+    <div class="url-box" id="url-student"></div>
+    <button class="dl-btn" onclick="download('qr-student','학생용_시험QR')">QR 다운로드</button>
+  </div>
+  <div class="card">
+    <div class="card-title">👩‍🏫 선생님 대시보드 QR</div>
+    <div class="card-desc">결과 및 오답노트 실시간 확인</div>
+    <canvas id="qr-dashboard"></canvas>
+    <div class="url-box" id="url-dashboard"></div>
+    <button class="dl-btn" onclick="download('qr-dashboard','선생님_대시보드QR')">QR 다운로드</button>
+  </div>
+</div>
+
+<div class="note">
+  <p>
+    <strong>사용 방법</strong><br>
+    1. <code>quiz_student.html</code>과 <code>quiz_dashboard.html</code>을 Google Drive, Netlify Drop, GitHub Pages 등에 업로드하세요.<br>
+    2. 각 파일의 공개 URL을 위 입력창에 넣고 <strong>QR 생성</strong>을 누르세요.<br>
+    3. 학생용 QR을 칠판이나 프린트해서 학생들에게 배포하세요.<br>
+    4. 선생님은 대시보드 QR로 실시간 결과를 확인하세요. (30초마다 자동 갱신)
+  </p>
+</div>
+
+<script>
+function generate(){
+  const su=document.getElementById('student-url').value.trim();
+  const du=document.getElementById('dashboard-url').value.trim();
+  if(!su||!du){alert('두 URL 모두 입력해주세요.'); return;}
+  document.getElementById('cards').style.display='grid';
+  QRCode.toCanvas(document.getElementById('qr-student'),su,{width:220,margin:2,color:{dark:'#1a1a18',light:'#ffffff'}});
+  QRCode.toCanvas(document.getElementById('qr-dashboard'),du,{width:220,margin:2,color:{dark:'#1a1a18',light:'#ffffff'}});
+  document.getElementById('url-student').textContent=su;
+  document.getElementById('url-dashboard').textContent=du;
+}
+function download(canvasId,name){
+  const a=document.createElement('a');
+  a.href=document.getElementById(canvasId).toDataURL();
+  a.download=name+'.png';
+  a.click();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>선생님 대시보드 — 단원평가 결과</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
+  :root {
+    --teal:#1D9E75; --teal-light:#E1F5EE; --teal-dark:#0F6E56;
+    --red:#E24B4A; --red-light:#FCEBEB; --red-dark:#791F1F;
+    --green:#639922; --green-light:#EAF3DE; --green-dark:#3B6D11;
+    --amber:#BA7517; --amber-light:#FAEEDA;
+    --gray-bg:#F7F6F2; --gray-border:#E2E0D8; --gray-text:#6B6A65;
+    --text:#1a1a18; --white:#fff;
+    --radius:12px; --radius-sm:8px;
+  }
+  body { font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif; background:var(--gray-bg); min-height:100vh; color:var(--text); }
+  header { background:var(--white); border-bottom:1px solid var(--gray-border); padding:1rem 1.5rem; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; }
+  .header-left h1 { font-size:17px; font-weight:700; }
+  .header-left p { font-size:12px; color:var(--gray-text); margin-top:2px; }
+  .refresh-btn { background:var(--teal); color:#fff; border:none; border-radius:var(--radius-sm); padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:6px; }
+  .refresh-btn:hover { background:var(--teal-dark); }
+  main { max-width:900px; margin:0 auto; padding:1.5rem 1rem; }
+
+  /* 필터 */
+  .filter-row { display:flex; gap:8px; margin-bottom:1.5rem; flex-wrap:wrap; }
+  .filter-btn { background:var(--white); border:1px solid var(--gray-border); border-radius:20px; padding:6px 16px; font-size:13px; cursor:pointer; transition:all 0.15s; }
+  .filter-btn.active, .filter-btn:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
+
+  /* 요약 카드 */
+  .stats-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-bottom:1.5rem; }
+  .stat-card { background:var(--white); border-radius:var(--radius); border:1px solid var(--gray-border); padding:1.1rem 1rem; }
+  .stat-card .label { font-size:11px; color:var(--gray-text); font-weight:600; letter-spacing:0.06em; margin-bottom:6px; }
+  .stat-card .value { font-size:28px; font-weight:800; line-height:1; }
+  .stat-card .sub { font-size:11px; color:var(--gray-text); margin-top:4px; }
+
+  /* 문제별 정답률 바 */
+  .q-analysis { background:var(--white); border-radius:var(--radius); border:1px solid var(--gray-border); padding:1.2rem 1.2rem 1rem; margin-bottom:1.5rem; }
+  .section-title { font-size:14px; font-weight:700; margin-bottom:1rem; display:flex; align-items:center; gap:6px; }
+  .section-title::before { content:''; display:block; width:4px; height:16px; background:var(--teal); border-radius:2px; }
+  .q-row { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+  .q-label { font-size:12px; color:var(--gray-text); width:36px; flex-shrink:0; }
+  .q-bar-bg { flex:1; height:10px; background:var(--gray-bg); border-radius:5px; overflow:hidden; }
+  .q-bar-fg { height:10px; border-radius:5px; transition:width 0.5s; }
+  .q-pct { font-size:12px; font-weight:600; width:38px; text-align:right; flex-shrink:0; }
+
+  /* 학생 목록 */
+  .student-table-wrap { background:var(--white); border-radius:var(--radius); border:1px solid var(--gray-border); overflow:hidden; margin-bottom:1.5rem; }
+  table { width:100%; border-collapse:collapse; }
+  th { background:var(--gray-bg); font-size:12px; font-weight:700; color:var(--gray-text); padding:10px 14px; text-align:left; border-bottom:1px solid var(--gray-border); }
+  td { padding:12px 14px; font-size:14px; border-bottom:1px solid var(--gray-border); vertical-align:middle; }
+  tr:last-child td { border-bottom:none; }
+  tr:hover td { background:#fafafa; }
+  .score-badge { display:inline-block; padding:3px 10px; border-radius:20px; font-size:12px; font-weight:700; }
+  .badge-a { background:var(--green-light); color:var(--green-dark); }
+  .badge-b { background:var(--teal-light); color:var(--teal-dark); }
+  .badge-c { background:var(--amber-light); color:var(--amber); }
+  .badge-d { background:var(--red-light); color:var(--red-dark); }
+  .wrong-pills { display:flex; flex-wrap:wrap; gap:4px; }
+  .wrong-pill { background:var(--red-light); color:var(--red-dark); font-size:11px; padding:2px 8px; border-radius:10px; font-weight:600; }
+  .expand-btn { background:none; border:none; color:var(--teal); font-size:12px; cursor:pointer; padding:2px 6px; border-radius:4px; }
+  .expand-btn:hover { background:var(--teal-light); }
+
+  /* 상세 오답 패널 */
+  .detail-row { display:none; }
+  .detail-row.open { display:table-row; }
+  .detail-cell { padding:0 14px 14px; }
+  .detail-inner { background:var(--gray-bg); border-radius:var(--radius-sm); padding:1rem; }
+  .detail-q { font-size:13px; margin-bottom:6px; }
+  .detail-my { color:var(--red-dark); font-size:12px; }
+  .detail-correct { color:var(--green-dark); font-size:12px; }
+  .detail-exp { font-size:12px; color:var(--gray-text); margin-top:4px; }
+
+  .empty-msg { text-align:center; padding:3rem; color:var(--gray-text); font-size:14px; }
+  .live-dot { width:8px; height:8px; background:#1D9E75; border-radius:50%; animation:pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+  @media(max-width:600px){ .stats-grid{grid-template-columns:1fr 1fr;} th:nth-child(4),td:nth-child(4){display:none;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="header-left">
+    <h1>📊 단원평가 결과 대시보드</h1>
+    <p>6학년 사회 1단원 · 우리나라의 정치 발전</p>
+  </div>
+  <button class="refresh-btn" onclick="loadData()">
+    <div class="live-dot"></div> 새로고침
+  </button>
+</header>
+<main>
+  <div class="filter-row" id="filter-row">
+    <button class="filter-btn active" onclick="setFilter('')" data-cls="">전체</button>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card"><div class="label">응시 인원</div><div class="value" id="s-count">—</div><div class="sub">명</div></div>
+    <div class="stat-card"><div class="label">평균 점수</div><div class="value" id="s-avg" style="color:var(--teal)">—</div><div class="sub">/ 20문제</div></div>
+    <div class="stat-card"><div class="label">최고 점수</div><div class="value" id="s-max" style="color:var(--green)">—</div><div class="sub">점</div></div>
+    <div class="stat-card"><div class="label">최저 점수</div><div class="value" id="s-min" style="color:var(--red)">—</div><div class="sub">점</div></div>
+  </div>
+
+  <div class="q-analysis">
+    <div class="section-title">문제별 정답률</div>
+    <div id="q-bars"></div>
+  </div>
+
+  <div class="student-table-wrap">
+    <div class="section-title" style="padding:1.2rem 1.2rem 0">학생별 결과</div>
+    <table>
+      <thead><tr>
+        <th>이름</th><th>반</th><th>점수</th><th>오답 문제</th><th>제출 시간</th><th></th>
+      </tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+  </div>
+</main>
+
+<script>
+const SUPABASE_URL='https://vfhziwnsiverbktrchyr.supabase.co';
+const SUPABASE_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmaHppd25zaXZlcmJrdHJjaHlyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0MzQ4ODYsImV4cCI6MjA5NzAxMDg4Nn0.ZMgfEVfwAUltE01gBdXpzkgZd0j4eX-UFLSuxp4XzYM';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const QS = ["민주주의의 기본 원리 중 국민이 나라의 주인이라는 원리를 무엇이라 하는가?","4·19 혁명이 일어난 해는?","우리나라 헌법에서 국민이 직접 대통령을 뽑는 제도를 무엇이라 하는가?","5·18 민주화 운동이 일어난 도시는?","국민이 나라의 중요한 일을 스스로 결정하는 민주주의 원리와 가장 관련 깊은 것은?","우리나라 헌법을 수호하고 헌법에 관한 분쟁을 판단하는 기관은?","6월 민주 항쟁(1987년)의 결과로 이루어진 것은?","민주주의 선거의 4대 원칙이 아닌 것은?","국회의 가장 중요한 역할은?","권력이 한 사람이나 기관에 집중되는 것을 막기 위해 국가 권력을 나누는 원리는?","우리나라 국회의원의 임기는 몇 년인가?","다음 중 기본권의 종류가 아닌 것은?","이승만 정부의 독재와 부정 선거에 항거하여 학생과 시민이 일으킨 혁명은?","우리나라 대통령의 임기는 몇 년인가?","법 앞에 모든 국민이 동등하게 대우받아야 한다는 기본권은?","전두환 신군부의 독재에 맞서 1980년 광주에서 일어난 민주화 운동은?","국민이 선거를 통해 나라의 정치에 직접 참여하는 권리는?","민주주의에서 의사 결정 방법으로 가장 많이 사용하는 원칙은?","헌법에서 국민에게 보장하는 권리로서 국가 권력도 침해할 수 없는 것은?","민주주의 발전을 위해 국민이 가져야 할 자세로 알맞지 않은 것은?"];
+const CORRECT_ANS=[0,2,1,2,0,1,1,3,0,1,1,3,1,1,1,2,2,1,1,1];
+const OPTS=[["국민 주권","법치주의","권력 분립","기본권 보장"],["1948년","1950년","1960년","1979년"],["간접 선거","직접 선거","비밀 선거","보통 선거"],["서울","부산","광주","대전"],["선거","독재","왕정","신분제"],["대법원","헌법재판소","국회","검찰"],["5·16 군사 정변","대통령 직선제 개헌","남북 분단","6·25 전쟁"],["보통 선거","평등 선거","직접 선거","지역 선거"],["법률 제정","세금 징수","군대 지휘","외교 활동"],["국민 주권","권력 분립","기본권 보장","다수결 원칙"],["2년","4년","5년","6년"],["자유권","평등권","참정권","독점권"],["3·1 운동","4·19 혁명","5·18 민주화 운동","6월 민주 항쟁"],["4년","5년","6년","7년"],["자유권","평등권","사회권","참정권"],["4·19 혁명","5·16 군사 정변","5·18 민주화 운동","6월 민주 항쟁"],["자유권","사회권","참정권","청구권"],["만장일치","다수결 원칙","소수결","제비뽑기"],["의무","기본권","법률","규칙"],["선거에 적극 참여한다","정치에 무관심하다","비판적으로 생각한다","다양한 의견을 존중한다"]];
+const EXP=["국민 주권은 나라의 주인이 국민임을 뜻하는 민주주의의 핵심 원리입니다.","4·19 혁명은 1960년에 이승만 정부의 독재와 부정 선거에 항거하여 일어났습니다.","직접 선거는 국민이 직접 대표를 뽑는 선거 방식입니다.","5·18 민주화 운동은 1980년 광주에서 신군부에 맞서 일어났습니다.","선거는 국민이 대표를 선출하여 스스로 나라의 일을 결정하는 핵심 수단입니다.","헌법재판소는 헌법 관련 분쟁을 판단하고 국민의 기본권을 보장합니다.","6월 민주 항쟁의 결과 대통령 직선제 개헌이 이루어졌습니다.","4대 원칙은 보통·평등·직접·비밀 선거입니다.","국회의 가장 중요한 역할은 법률 제정입니다.","권력 분립은 입법·사법·행정으로 나누어 권력 남용을 막는 원리입니다.","국회의원의 임기는 4년입니다.","기본권에는 자유권, 평등권, 참정권, 사회권, 청구권이 있습니다.","4·19 혁명(1960)은 3·15 부정 선거에 항거한 혁명입니다.","대통령의 임기는 5년이며 중임 불가입니다.","평등권은 법 앞에 동등하게 대우받을 권리입니다.","5·18 민주화 운동은 1980년 5월 광주에서 일어났습니다.","참정권은 선거권·피선거권 등 정치 참여 권리입니다.","다수결 원칙은 과반수 의견에 따라 결정하는 방식입니다.","기본권은 헌법이 보장하는 권리로 국가도 침해할 수 없습니다.","민주주의 발전을 위해 국민은 정치에 적극 참여해야 합니다."];
+
+let allData=[], filterClass='';
+
+async function loadData(){
+  const {data,error} = await sb.from('quiz_sessions').select('*').order('submitted_at',{ascending:false});
+  if(error){console.error(error); return;}
+  allData = data||[];
+  buildFilters();
+  render();
+}
+
+function buildFilters(){
+  const classes=[...new Set(allData.map(d=>d.class_name).filter(Boolean))].sort();
+  const fr=document.getElementById('filter-row');
+  fr.innerHTML='<button class="filter-btn'+(filterClass===''?' active':'')+'" onclick="setFilter(\'\')" data-cls="">전체</button>';
+  classes.forEach(c=>{
+    const b=document.createElement('button');
+    b.className='filter-btn'+(filterClass===c?' active':'');
+    b.textContent=c;
+    b.onclick=()=>setFilter(c);
+    fr.appendChild(b);
+  });
+}
+
+function setFilter(cls){
+  filterClass=cls;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active',b.textContent===(cls||'전체')));
+  render();
+}
+
+function render(){
+  const rows=filterClass?allData.filter(d=>d.class_name===filterClass):allData;
+  if(rows.length===0){
+    document.getElementById('s-count').textContent='0';
+    document.getElementById('s-avg').textContent='—';
+    document.getElementById('s-max').textContent='—';
+    document.getElementById('s-min').textContent='—';
+    document.getElementById('tbody').innerHTML='<tr><td colspan="6" class="empty-msg">아직 제출된 답안이 없습니다.</td></tr>';
+    document.getElementById('q-bars').innerHTML='';
+    return;
+  }
+  const scores=rows.map(r=>r.score||0);
+  document.getElementById('s-count').textContent=rows.length;
+  document.getElementById('s-avg').textContent=(scores.reduce((a,b)=>a+b,0)/scores.length).toFixed(1);
+  document.getElementById('s-max').textContent=Math.max(...scores);
+  document.getElementById('s-min').textContent=Math.min(...scores);
+  renderBars(rows);
+  renderTable(rows);
+}
+
+function renderBars(rows){
+  const correctCounts=Array(20).fill(0);
+  rows.forEach(r=>{
+    (r.answers||[]).forEach(a=>{if(a.correct) correctCounts[a.q]++;});
+  });
+  const html=correctCounts.map((c,i)=>{
+    const pct=rows.length>0?Math.round(c/rows.length*100):0;
+    const color=pct>=80?'var(--teal)':pct>=60?'var(--amber)':'var(--red)';
+    return `<div class="q-row">
+      <div class="q-label">Q${i+1}</div>
+      <div class="q-bar-bg"><div class="q-bar-fg" style="width:${pct}%;background:${color}"></div></div>
+      <div class="q-pct" style="color:${color}">${pct}%</div>
+    </div>`;
+  }).join('');
+  document.getElementById('q-bars').innerHTML=html;
+}
+
+function renderTable(rows){
+  const tbody=document.getElementById('tbody');
+  tbody.innerHTML=rows.map((r,ri)=>{
+    const score=r.score||0;
+    const pct=Math.round(score/20*100);
+    const badgeCls=pct>=90?'badge-a':pct>=70?'badge-b':pct>=50?'badge-c':'badge-d';
+    const wrongNums=(r.answers||[]).filter(a=>!a.correct).map(a=>a.q+1);
+    const wrongPills=wrongNums.slice(0,8).map(n=>`<span class="wrong-pill">Q${n}</span>`).join('')+(wrongNums.length>8?`<span class="wrong-pill">+${wrongNums.length-8}</span>`:'');
+    const time=r.submitted_at?new Date(r.submitted_at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}):'—';
+    const wrongDetails=(r.answers||[]).filter(a=>!a.correct).map(a=>`
+      <div style="margin-bottom:10px">
+        <div class="detail-q">Q${a.q+1}. ${QS[a.q]}</div>
+        <div class="detail-my">✗ 내 답: ${a.picked!==null&&a.picked!==undefined?OPTS[a.q][a.picked]:'(미응답)'}</div>
+        <div class="detail-correct">✓ 정답: ${OPTS[a.q][CORRECT_ANS[a.q]]}</div>
+        <div class="detail-exp">💡 ${EXP[a.q]}</div>
+      </div>`).join('');
+    return `<tr>
+      <td><strong>${r.student_name}</strong></td>
+      <td>${r.class_name||'—'}</td>
+      <td><span class="score-badge ${badgeCls}">${score}점 (${pct}%)</span></td>
+      <td><div class="wrong-pills">${wrongPills||'<span style="color:var(--green);font-size:12px">✓ 전부 정답</span>'}</div></td>
+      <td style="color:var(--gray-text);font-size:13px">${time}</td>
+      <td><button class="expand-btn" onclick="toggleDetail(${ri})">오답보기</button></td>
+    </tr>
+    <tr class="detail-row" id="detail-${ri}">
+      <td colspan="6" class="detail-cell">
+        <div class="detail-inner">
+          <strong style="font-size:13px;display:block;margin-bottom:10px">${r.student_name} — 오답노트</strong>
+          ${wrongDetails||'<div style="color:var(--green);font-size:13px">오답이 없습니다!</div>'}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function toggleDetail(ri){
+  const row=document.getElementById('detail-'+ri);
+  row.classList.toggle('open');
+}
+
+loadData();
+setInterval(loadData, 30000);
+</script>
+</body>
+</html>
