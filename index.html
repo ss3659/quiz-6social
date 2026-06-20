@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>6학년 사회 단원평가 시스템</title>
+<style>
+  *, *::before, *::after { box-sizing:border-box; margin:0; padding:0; }
+  :root {
+    --teal:#1D9E75; --teal-light:#E1F5EE; --teal-dark:#0F6E56;
+    --gray-bg:#F7F6F2; --gray-border:#E2E0D8; --gray-text:#6B6A65;
+    --text:#1a1a18; --white:#fff; --radius:12px; --radius-sm:8px;
+  }
+  body { font-family:'Apple SD Gothic Neo','Noto Sans KR',sans-serif; background:var(--gray-bg); min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:2rem 1rem; color:var(--text); }
+  .badge { display:inline-block; background:var(--teal-light); color:var(--teal-dark); font-size:12px; font-weight:600; padding:4px 12px; border-radius:20px; margin-bottom:1rem; letter-spacing:0.05em; }
+  h1 { font-size:24px; font-weight:800; text-align:center; margin-bottom:6px; }
+  .subtitle { font-size:14px; color:var(--gray-text); text-align:center; margin-bottom:2rem; }
+  .cards { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; width:100%; max-width:760px; }
+  @media(max-width:640px){ .cards{grid-template-columns:1fr;} }
+  a.card { background:var(--white); border-radius:var(--radius); border:1px solid var(--gray-border); padding:1.6rem 1.4rem; text-decoration:none; color:var(--text); transition:all 0.15s; display:flex; flex-direction:column; }
+  a.card:hover { border-color:var(--teal); transform:translateY(-2px); box-shadow:0 6px 20px rgba(29,158,117,0.12); }
+  .card .icon { font-size:34px; margin-bottom:12px; }
+  .card .title { font-size:16px; font-weight:700; margin-bottom:6px; }
+  .card .desc { font-size:13px; color:var(--gray-text); line-height:1.6; }
+  .card .go { margin-top:14px; font-size:13px; font-weight:600; color:var(--teal); }
+  footer { margin-top:2rem; font-size:12px; color:var(--gray-text); text-align:center; }
+</style>
+</head>
+<body>
+  <div class="badge">6학년 사회 1단원 · 우리나라의 정치 발전</div>
+  <h1>📚 단원평가 시스템</h1>
+  <p class="subtitle">학생은 시험을, 선생님은 결과를 확인하세요</p>
+
+  <div class="cards">
+    <a class="card" href="quiz_student.html">
+      <div class="icon">👧</div>
+      <div class="title">학생용 시험</div>
+      <div class="desc">20문제 · 즉시 채점 · 오답노트 제공</div>
+      <div class="go">시험 보러 가기 →</div>
+    </a>
+    <a class="card" href="quiz_dashboard.html">
+      <div class="icon">👩‍🏫</div>
+      <div class="title">선생님 대시보드</div>
+      <div class="desc">실시간 결과 · 문제별 정답률 (30초 자동 갱신)</div>
+      <div class="go">결과 확인하기 →</div>
+    </a>
+    <a class="card" href="quiz_qr.html">
+      <div class="icon">📱</div>
+      <div class="title">QR코드 안내</div>
+      <div class="desc">학생 배포용 QR코드 생성·다운로드</div>
+      <div class="go">QR 만들기 →</div>
+    </a>
+  </div>
+
+  <footer>학생에게는 <strong>학생용 시험</strong> 또는 QR코드만 공유하세요.</footer>
+</body>
+</html>
