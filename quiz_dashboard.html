@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>선생님 대시보드 — 단원평가 결과</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="quiz_data.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
   :root {
@@ -24,7 +25,14 @@
   .refresh-btn:hover { background:var(--teal-dark); }
   main { max-width:900px; margin:0 auto; padding:1.5rem 1rem; }
 
-  /* 필터 */
+  /* 과목/단원 선택 */
+  .picker-row { display:flex; gap:10px; margin-bottom:1rem; flex-wrap:wrap; }
+  .picker { display:flex; flex-direction:column; gap:4px; }
+  .picker label { font-size:11px; color:var(--gray-text); font-weight:600; letter-spacing:0.04em; }
+  .picker select { padding:8px 12px; border:1px solid var(--gray-border); border-radius:var(--radius-sm); font-size:14px; background:var(--white); color:var(--text); outline:none; min-width:130px; }
+  .picker select:focus { border-color:var(--teal); }
+
+  /* 반 필터 */
   .filter-row { display:flex; gap:8px; margin-bottom:1.5rem; flex-wrap:wrap; }
   .filter-btn { background:var(--white); border:1px solid var(--gray-border); border-radius:20px; padding:6px 16px; font-size:13px; cursor:pointer; transition:all 0.15s; }
   .filter-btn.active, .filter-btn:hover { background:var(--teal); color:#fff; border-color:var(--teal); }
@@ -83,20 +91,31 @@
 <header>
   <div class="header-left">
     <h1>📊 단원평가 결과 대시보드</h1>
-    <p>6학년 사회 1단원 · 우리나라의 정치 발전</p>
+    <p id="header-sub">6학년 단원평가</p>
   </div>
   <button class="refresh-btn" onclick="loadData()">
     <div class="live-dot"></div> 새로고침
   </button>
 </header>
 <main>
+  <div class="picker-row">
+    <div class="picker">
+      <label>과목</label>
+      <select id="subject-select" onchange="onSubjectChange()"></select>
+    </div>
+    <div class="picker">
+      <label>단원</label>
+      <select id="unit-select" onchange="onUnitChange()"></select>
+    </div>
+  </div>
+
   <div class="filter-row" id="filter-row">
     <button class="filter-btn active" onclick="setFilter('')" data-cls="">전체</button>
   </div>
 
   <div class="stats-grid">
     <div class="stat-card"><div class="label">응시 인원</div><div class="value" id="s-count">—</div><div class="sub">명</div></div>
-    <div class="stat-card"><div class="label">평균 점수</div><div class="value" id="s-avg" style="color:var(--teal)">—</div><div class="sub">/ 20문제</div></div>
+    <div class="stat-card"><div class="label">평균 점수</div><div class="value" id="s-avg" style="color:var(--teal)">—</div><div class="sub" id="s-avg-sub">/ —문제</div></div>
     <div class="stat-card"><div class="label">최고 점수</div><div class="value" id="s-max" style="color:var(--green)">—</div><div class="sub">점</div></div>
     <div class="stat-card"><div class="label">최저 점수</div><div class="value" id="s-min" style="color:var(--red)">—</div><div class="sub">점</div></div>
   </div>
@@ -122,12 +141,42 @@ const SUPABASE_URL='https://btatltsnzsvuxnvxoetv.supabase.co';
 const SUPABASE_KEY='sb_publishable_hyo67SXKucw_n82sHPIMYg_Ku3H1z3L';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-const QS = ["민주주의의 기본 원리 중 국민이 나라의 주인이라는 원리를 무엇이라 하는가?","4·19 혁명이 일어난 해는?","우리나라 헌법에서 국민이 직접 대통령을 뽑는 제도를 무엇이라 하는가?","5·18 민주화 운동이 일어난 도시는?","국민이 나라의 중요한 일을 스스로 결정하는 민주주의 원리와 가장 관련 깊은 것은?","우리나라 헌법을 수호하고 헌법에 관한 분쟁을 판단하는 기관은?","6월 민주 항쟁(1987년)의 결과로 이루어진 것은?","민주주의 선거의 4대 원칙이 아닌 것은?","국회의 가장 중요한 역할은?","권력이 한 사람이나 기관에 집중되는 것을 막기 위해 국가 권력을 나누는 원리는?","우리나라 국회의원의 임기는 몇 년인가?","다음 중 기본권의 종류가 아닌 것은?","이승만 정부의 독재와 부정 선거에 항거하여 학생과 시민이 일으킨 혁명은?","우리나라 대통령의 임기는 몇 년인가?","법 앞에 모든 국민이 동등하게 대우받아야 한다는 기본권은?","전두환 신군부의 독재에 맞서 1980년 광주에서 일어난 민주화 운동은?","국민이 선거를 통해 나라의 정치에 직접 참여하는 권리는?","민주주의에서 의사 결정 방법으로 가장 많이 사용하는 원칙은?","헌법에서 국민에게 보장하는 권리로서 국가 권력도 침해할 수 없는 것은?","민주주의 발전을 위해 국민이 가져야 할 자세로 알맞지 않은 것은?"];
-const CORRECT_ANS=[0,2,1,2,0,1,1,3,0,1,1,3,1,1,1,2,2,1,1,1];
-const OPTS=[["국민 주권","법치주의","권력 분립","기본권 보장"],["1948년","1950년","1960년","1979년"],["간접 선거","직접 선거","비밀 선거","보통 선거"],["서울","부산","광주","대전"],["선거","독재","왕정","신분제"],["대법원","헌법재판소","국회","검찰"],["5·16 군사 정변","대통령 직선제 개헌","남북 분단","6·25 전쟁"],["보통 선거","평등 선거","직접 선거","지역 선거"],["법률 제정","세금 징수","군대 지휘","외교 활동"],["국민 주권","권력 분립","기본권 보장","다수결 원칙"],["2년","4년","5년","6년"],["자유권","평등권","참정권","독점권"],["3·1 운동","4·19 혁명","5·18 민주화 운동","6월 민주 항쟁"],["4년","5년","6년","7년"],["자유권","평등권","사회권","참정권"],["4·19 혁명","5·16 군사 정변","5·18 민주화 운동","6월 민주 항쟁"],["자유권","사회권","참정권","청구권"],["만장일치","다수결 원칙","소수결","제비뽑기"],["의무","기본권","법률","규칙"],["선거에 적극 참여한다","정치에 무관심하다","비판적으로 생각한다","다양한 의견을 존중한다"]];
-const EXP=["국민 주권은 나라의 주인이 국민임을 뜻하는 민주주의의 핵심 원리입니다.","4·19 혁명은 1960년에 이승만 정부의 독재와 부정 선거에 항거하여 일어났습니다.","직접 선거는 국민이 직접 대표를 뽑는 선거 방식입니다.","5·18 민주화 운동은 1980년 광주에서 신군부에 맞서 일어났습니다.","선거는 국민이 대표를 선출하여 스스로 나라의 일을 결정하는 핵심 수단입니다.","헌법재판소는 헌법 관련 분쟁을 판단하고 국민의 기본권을 보장합니다.","6월 민주 항쟁의 결과 대통령 직선제 개헌이 이루어졌습니다.","4대 원칙은 보통·평등·직접·비밀 선거입니다.","국회의 가장 중요한 역할은 법률 제정입니다.","권력 분립은 입법·사법·행정으로 나누어 권력 남용을 막는 원리입니다.","국회의원의 임기는 4년입니다.","기본권에는 자유권, 평등권, 참정권, 사회권, 청구권이 있습니다.","4·19 혁명(1960)은 3·15 부정 선거에 항거한 혁명입니다.","대통령의 임기는 5년이며 중임 불가입니다.","평등권은 법 앞에 동등하게 대우받을 권리입니다.","5·18 민주화 운동은 1980년 5월 광주에서 일어났습니다.","참정권은 선거권·피선거권 등 정치 참여 권리입니다.","다수결 원칙은 과반수 의견에 따라 결정하는 방식입니다.","기본권은 헌법이 보장하는 권리로 국가도 침해할 수 없습니다.","민주주의 발전을 위해 국민은 정치에 적극 참여해야 합니다."];
-
 let allData=[], filterClass='';
+let subject='사회', unit='1단원';
+// 선택된 단원의 문항 파생 배열
+let QS=[], OPTS=[], CORRECT_ANS=[], EXP=[];
+
+function loadBank(){
+  const qset = (QUIZ_BANK[subject] && QUIZ_BANK[subject][unit]) ? QUIZ_BANK[subject][unit].questions : [];
+  QS = qset.map(x=>x.q);
+  OPTS = qset.map(x=>x.opts);
+  CORRECT_ANS = qset.map(x=>x.ans);
+  EXP = qset.map(x=>x.exp);
+  const title = (QUIZ_BANK[subject] && QUIZ_BANK[subject][unit]) ? QUIZ_BANK[subject][unit].title : '';
+  document.getElementById('header-sub').textContent = `6학년 ${subject} · ${unit}${title?' — '+title:''}`;
+}
+
+function initPickers(){
+  const ss=document.getElementById('subject-select');
+  ss.innerHTML = SUBJECTS.map(s=>`<option${s===subject?' selected':''}>${s}</option>`).join('');
+  buildUnitOptions();
+}
+function buildUnitOptions(){
+  const us=document.getElementById('unit-select');
+  const units = Object.keys(QUIZ_BANK[subject]||{});
+  if(!units.includes(unit)) unit = units[0];
+  us.innerHTML = units.map(u=>`<option${u===unit?' selected':''}>${u}</option>`).join('');
+}
+function onSubjectChange(){
+  subject = document.getElementById('subject-select').value;
+  buildUnitOptions();
+  unit = document.getElementById('unit-select').value;
+  loadBank(); render();
+}
+function onUnitChange(){
+  unit = document.getElementById('unit-select').value;
+  loadBank(); render();
+}
 
 async function loadData(){
   const {data,error} = await sb.from('quiz_sessions').select('*').order('submitted_at',{ascending:false});
@@ -137,8 +186,14 @@ async function loadData(){
   render();
 }
 
+// 현재 과목/단원에 해당하는 행만
+function currentRows(){
+  return allData.filter(d=>d.subject===subject && d.unit===unit);
+}
+
 function buildFilters(){
-  const classes=[...new Set(allData.map(d=>d.class_name).filter(Boolean))].sort();
+  const scoped = currentRows();
+  const classes=[...new Set(scoped.map(d=>d.class_name).filter(Boolean))].sort();
   const fr=document.getElementById('filter-row');
   fr.innerHTML='<button class="filter-btn'+(filterClass===''?' active':'')+'" onclick="setFilter(\'\')" data-cls="">전체</button>';
   classes.forEach(c=>{
@@ -157,7 +212,10 @@ function setFilter(cls){
 }
 
 function render(){
-  const rows=filterClass?allData.filter(d=>d.class_name===filterClass):allData;
+  const N = QS.length;
+  document.getElementById('s-avg-sub').textContent = '/ '+N+'문제';
+  let rows = currentRows();
+  if(filterClass) rows = rows.filter(d=>d.class_name===filterClass);
   if(rows.length===0){
     document.getElementById('s-count').textContent='0';
     document.getElementById('s-avg').textContent='—';
@@ -177,9 +235,10 @@ function render(){
 }
 
 function renderBars(rows){
-  const correctCounts=Array(20).fill(0);
+  const N = QS.length;
+  const correctCounts=Array(N).fill(0);
   rows.forEach(r=>{
-    (r.answers||[]).forEach(a=>{if(a.correct) correctCounts[a.q]++;});
+    (r.answers||[]).forEach(a=>{if(a.correct && a.q<N) correctCounts[a.q]++;});
   });
   const html=correctCounts.map((c,i)=>{
     const pct=rows.length>0?Math.round(c/rows.length*100):0;
@@ -194,20 +253,22 @@ function renderBars(rows){
 }
 
 function renderTable(rows){
+  const N = QS.length;
   const tbody=document.getElementById('tbody');
   tbody.innerHTML=rows.map((r,ri)=>{
     const score=r.score||0;
-    const pct=Math.round(score/20*100);
+    const total=r.total||N;
+    const pct=total>0?Math.round(score/total*100):0;
     const badgeCls=pct>=90?'badge-a':pct>=70?'badge-b':pct>=50?'badge-c':'badge-d';
     const wrongNums=(r.answers||[]).filter(a=>!a.correct).map(a=>a.q+1);
     const wrongPills=wrongNums.slice(0,8).map(n=>`<span class="wrong-pill">Q${n}</span>`).join('')+(wrongNums.length>8?`<span class="wrong-pill">+${wrongNums.length-8}</span>`:'');
     const time=r.submitted_at?new Date(r.submitted_at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}):'—';
     const wrongDetails=(r.answers||[]).filter(a=>!a.correct).map(a=>`
       <div style="margin-bottom:10px">
-        <div class="detail-q">Q${a.q+1}. ${QS[a.q]}</div>
-        <div class="detail-my">✗ 내 답: ${a.picked!==null&&a.picked!==undefined?OPTS[a.q][a.picked]:'(미응답)'}</div>
-        <div class="detail-correct">✓ 정답: ${OPTS[a.q][CORRECT_ANS[a.q]]}</div>
-        <div class="detail-exp">💡 ${EXP[a.q]}</div>
+        <div class="detail-q">Q${a.q+1}. ${QS[a.q]??''}</div>
+        <div class="detail-my">✗ 내 답: ${a.picked!==null&&a.picked!==undefined&&OPTS[a.q]?OPTS[a.q][a.picked]:'(미응답)'}</div>
+        <div class="detail-correct">✓ 정답: ${OPTS[a.q]?OPTS[a.q][CORRECT_ANS[a.q]]:''}</div>
+        <div class="detail-exp">💡 ${EXP[a.q]??''}</div>
       </div>`).join('');
     return `<tr>
       <td><strong>${r.student_name}</strong></td>
@@ -233,6 +294,8 @@ function toggleDetail(ri){
   row.classList.toggle('open');
 }
 
+initPickers();
+loadBank();
 loadData();
 setInterval(loadData, 30000);
 </script>
