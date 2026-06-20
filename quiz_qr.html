@@ -49,13 +49,13 @@
   <div class="input-row">
     <div class="field">
       <label>학생용 시험 URL (quiz_student.html 업로드 주소)</label>
-      <input type="text" id="student-url" placeholder="https://example.com/quiz_student.html">
+      <input type="text" id="student-url" placeholder="https://example.com/quiz_student.html" value="https://ss3659.github.io/quiz-6social/quiz_student.html">
     </div>
   </div>
   <div class="input-row" style="margin-top:10px">
     <div class="field">
       <label>선생님 대시보드 URL (quiz_dashboard.html 업로드 주소)</label>
-      <input type="text" id="dashboard-url" placeholder="https://example.com/quiz_dashboard.html">
+      <input type="text" id="dashboard-url" placeholder="https://example.com/quiz_dashboard.html" value="https://ss3659.github.io/quiz-6social/quiz_dashboard.html">
     </div>
     <button class="gen-btn" onclick="generate()">QR 생성</button>
   </div>
@@ -105,6 +105,12 @@ function download(canvasId,name){
   a.download=name+'.png';
   a.click();
 }
+// 배포 URL이 입력되어 있으면 페이지 로드 시 QR 자동 생성
+window.addEventListener('load',()=>{
+  if(document.getElementById('student-url').value.trim() && document.getElementById('dashboard-url').value.trim()){
+    generate();
+  }
+});
 </script>
 </body>
 </html>
