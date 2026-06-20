@@ -152,6 +152,8 @@ const SUPABASE_URL='https://btatltsnzsvuxnvxoetv.supabase.co';
 const SUPABASE_KEY='sb_publishable_hyo67SXKucw_n82sHPIMYg_Ku3H1z3L';
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
 let allData=[], filterClass='';
 let subject='사회', unit='1단원';
 // 선택된 단원의 문항 파생 배열
@@ -275,6 +277,15 @@ function renderTable(rows){
     const wrongNums=(r.answers||[]).filter(a=>!a.correct).map(a=>a.q+1);
     const wrongPills=wrongNums.slice(0,8).map(n=>`<span class="wrong-pill">Q${n}</span>`).join('')+(wrongNums.length>8?`<span class="wrong-pill">+${wrongNums.length-8}</span>`:'');
     const time=r.submitted_at?new Date(r.submitted_at).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}):'—';
+    const signed = !!r.parent_signed_at;
+    const parentBadge = signed ? ' <span style="background:var(--teal-light);color:var(--teal-dark);font-size:10px;font-weight:700;padding:2px 6px;border-radius:8px;white-space:nowrap">👪 확인</span>' : '';
+    const parentBlock = signed ? `
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-border)">
+        <strong style="font-size:13px;display:block;margin-bottom:6px">👨‍👩‍👧 학부모 확인</strong>
+        ${r.parent_comment?`<div style="font-size:13px;margin-bottom:6px">💬 ${escapeHtml(r.parent_comment)}</div>`:''}
+        ${r.parent_signature?`<img src="${r.parent_signature}" alt="학부모 서명" style="max-width:200px;border:1px solid var(--gray-border);border-radius:6px;background:#fff"/>`:''}
+        <div style="font-size:11px;color:var(--gray-text);margin-top:4px">${new Date(r.parent_signed_at).toLocaleString('ko-KR')}</div>
+      </div>` : `<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--gray-border);font-size:12px;color:var(--gray-text)">👪 학부모 미확인</div>`;
     const wrongDetails=(r.answers||[]).filter(a=>!a.correct).map(a=>`
       <div style="margin-bottom:10px">
         <div class="detail-q">Q${a.q+1}. ${QS[a.q]??''}</div>
@@ -283,7 +294,7 @@ function renderTable(rows){
         <div class="detail-exp">💡 ${EXP[a.q]??''}</div>
       </div>`).join('');
     return `<tr>
-      <td><strong>${r.student_name}</strong></td>
+      <td><strong>${r.student_name}</strong>${parentBadge}</td>
       <td>${r.class_name||'—'}</td>
       <td><span class="score-badge ${badgeCls}">${score}점 (${pct}%)</span></td>
       <td><div class="wrong-pills">${wrongPills||'<span style="color:var(--green);font-size:12px">✓ 전부 정답</span>'}</div></td>
@@ -295,6 +306,7 @@ function renderTable(rows){
         <div class="detail-inner">
           <strong style="font-size:13px;display:block;margin-bottom:10px">${r.student_name} — 오답노트</strong>
           ${wrongDetails||'<div style="color:var(--green);font-size:13px">오답이 없습니다!</div>'}
+          ${parentBlock}
         </div>
       </td>
     </tr>`;
