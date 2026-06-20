@@ -125,6 +125,17 @@
     <div id="q-bars"></div>
   </div>
 
+  <div class="q-analysis" id="trend-section">
+    <div class="section-title">단원별 점수 변화 (1단원 → 2단원)</div>
+    <p style="font-size:12px;color:var(--gray-text);margin:-6px 0 12px">선택한 <strong id="trend-subject"></strong> 과목의 단원별 점수(%) 변화입니다. 만점이 달라 백분율로 비교합니다.</p>
+    <div id="trend-chart"></div>
+    <div id="trend-legend" style="display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--gray-text);margin-top:8px">
+      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:16px;height:3px;background:var(--teal);border-radius:2px"></span>평균</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:16px;height:3px;background:var(--green);border-radius:2px"></span>상승한 학생</span>
+      <span style="display:flex;align-items:center;gap:5px"><span style="display:inline-block;width:16px;height:3px;background:var(--red);border-radius:2px"></span>하락한 학생</span>
+    </div>
+  </div>
+
   <div class="student-table-wrap">
     <div class="section-title" style="padding:1.2rem 1.2rem 0">학생별 결과</div>
     <table>
@@ -214,6 +225,7 @@ function setFilter(cls){
 function render(){
   const N = QS.length;
   document.getElementById('s-avg-sub').textContent = '/ '+N+'문제';
+  renderTrend();
   let rows = currentRows();
   if(filterClass) rows = rows.filter(d=>d.class_name===filterClass);
   if(rows.length===0){
@@ -287,6 +299,94 @@ function renderTable(rows){
       </td>
     </tr>`;
   }).join('');
+}
+
+// 단원별 점수 변화 그래프 (현재 과목, 1단원 vs 2단원, 백분율)
+function studentKey(r){ return (r.class_name||'')+'|'+r.student_name; }
+function latestPctByStudent(unitName){
+  // allData는 submitted_at 내림차순 → 학생별 첫 등장이 최신
+  const map = new Map();
+  allData.filter(d=>d.subject===subject && d.unit===unitName && (!filterClass||d.class_name===filterClass))
+    .forEach(r=>{
+      const k = studentKey(r);
+      if(!map.has(k)){
+        const t = r.total||1;
+        map.set(k, { pct: Math.round((r.score||0)/t*100), name: r.student_name, cls: r.class_name });
+      }
+    });
+  return map;
+}
+function mean(arr){ return arr.length? arr.reduce((a,b)=>a+b,0)/arr.length : null; }
+
+function renderTrend(){
+  document.getElementById('trend-subject').textContent = subject;
+  const u1 = latestPctByStudent('1단원');
+  const u2 = latestPctByStudent('2단원');
+  const chart = document.getElementById('trend-chart');
+  if(u1.size===0 && u2.size===0){
+    chart.innerHTML = '<div style="text-align:center;padding:1.5rem;color:var(--gray-text);font-size:13px">아직 응시 데이터가 없습니다.</div>';
+    return;
+  }
+  const avg1 = mean([...u1.values()].map(v=>v.pct));
+  const avg2 = mean([...u2.values()].map(v=>v.pct));
+
+  const W=600,H=260, yTop=20, yBot=220, x1=200, x2=400;
+  const C={teal:'#1D9E75',green:'#639922',red:'#E24B4A',border:'#E2E0D8',gray:'#6B6A65',text:'#1a1a18'};
+  const yOf = p => yBot - (p/100)*(yBot-yTop);
+  let svg = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;max-height:280px">`;
+  // 가로 눈금선 + y축 라벨
+  [0,25,50,75,100].forEach(p=>{
+    const y=yOf(p);
+    svg += `<line x1="40" y1="${y}" x2="${W-20}" y2="${y}" stroke="${C.border}" stroke-width="1"/>`;
+    svg += `<text x="34" y="${y+4}" text-anchor="end" font-size="10" fill="${C.gray}">${p}</text>`;
+  });
+  // 세로 기준선
+  svg += `<line x1="${x1}" y1="${yTop}" x2="${x1}" y2="${yBot}" stroke="${C.border}" stroke-width="1"/>`;
+  svg += `<line x1="${x2}" y1="${yTop}" x2="${x2}" y2="${yBot}" stroke="${C.border}" stroke-width="1"/>`;
+  svg += `<text x="${x1}" y="${H-12}" text-anchor="middle" font-size="12" fill="${C.text}" font-weight="700">1단원</text>`;
+  svg += `<text x="${x2}" y="${H-12}" text-anchor="middle" font-size="12" fill="${C.text}" font-weight="700">2단원</text>`;
+
+  // 학생별 변화선 (두 단원 모두 응시한 학생)
+  let both=0;
+  u1.forEach((v1,k)=>{
+    if(u2.has(k)){
+      both++;
+      const v2=u2.get(k);
+      const col = v2.pct>=v1.pct ? C.green : C.red;
+      svg += `<line x1="${x1}" y1="${yOf(v1.pct)}" x2="${x2}" y2="${yOf(v2.pct)}" stroke="${col}" stroke-width="1.5" opacity="0.45"><title>${(v1.cls||'')} ${v1.name}: ${v1.pct}% → ${v2.pct}%</title></line>`;
+      svg += `<circle cx="${x1}" cy="${yOf(v1.pct)}" r="2.5" fill="${col}" opacity="0.6"/>`;
+      svg += `<circle cx="${x2}" cy="${yOf(v2.pct)}" r="2.5" fill="${col}" opacity="0.6"/>`;
+    }
+  });
+  // 한 단원만 응시한 학생은 흐린 점으로 표시
+  u1.forEach((v1,k)=>{ if(!u2.has(k)) svg += `<circle cx="${x1}" cy="${yOf(v1.pct)}" r="2.5" fill="${C.gray}" opacity="0.35"><title>${(v1.cls||'')} ${v1.name}: ${v1.pct}% (1단원만)</title></circle>`; });
+  u2.forEach((v2,k)=>{ if(!u1.has(k)) svg += `<circle cx="${x2}" cy="${yOf(v2.pct)}" r="2.5" fill="${C.gray}" opacity="0.35"><title>${(v2.cls||'')} ${v2.name}: ${v2.pct}% (2단원만)</title></circle>`; });
+
+  // 평균선
+  if(avg1!==null && avg2!==null){
+    svg += `<line x1="${x1}" y1="${yOf(avg1)}" x2="${x2}" y2="${yOf(avg2)}" stroke="${C.teal}" stroke-width="3"/>`;
+  }
+  if(avg1!==null){
+    svg += `<circle cx="${x1}" cy="${yOf(avg1)}" r="5" fill="${C.teal}"/>`;
+    svg += `<text x="${x1-10}" y="${yOf(avg1)-9}" text-anchor="end" font-size="12" font-weight="700" fill="${C.teal}">${avg1.toFixed(0)}%</text>`;
+  }
+  if(avg2!==null){
+    svg += `<circle cx="${x2}" cy="${yOf(avg2)}" r="5" fill="${C.teal}"/>`;
+    svg += `<text x="${x2+10}" y="${yOf(avg2)-9}" text-anchor="start" font-size="12" font-weight="700" fill="${C.teal}">${avg2.toFixed(0)}%</text>`;
+  }
+  svg += `</svg>`;
+
+  // 요약 문구
+  let summary = `1단원 ${u1.size}명 · 2단원 ${u2.size}명 · 두 단원 모두 응시 ${both}명`;
+  if(avg1!==null && avg2!==null){
+    const diff = (avg2-avg1).toFixed(0);
+    const dir = avg2>avg1 ? `▲ ${diff}%p 상승` : avg2<avg1 ? `▼ ${Math.abs(diff)}%p 하락` : '변화 없음';
+    const dcol = avg2>avg1 ? C.green : avg2<avg1 ? C.red : C.gray;
+    summary += ` · 평균 <strong style="color:${dcol}">${dir}</strong> (${avg1.toFixed(0)}% → ${avg2.toFixed(0)}%)`;
+  } else {
+    summary += ' · (두 단원 평균 비교는 양쪽 모두 응시 데이터가 있어야 표시됩니다)';
+  }
+  chart.innerHTML = svg + `<div style="font-size:12px;color:var(--gray-text);margin-top:10px">${summary}</div>`;
 }
 
 function toggleDetail(ri){
